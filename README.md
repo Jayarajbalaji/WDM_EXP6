@@ -16,28 +16,13 @@ sklearn to demonstrate Information Retrieval using the Vector Space Model.
 
 ### Program:
 
-```
-import requests
-from bs4 import BeautifulSoup
-from sklearn.feature_extraction.text import TfidfVectorizer
+```python
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+import pandas as pd
 import string
-import nltk
 
-# The NLTK downloader will try to download the necessary packages.
-# This might require an internet connection the first time it's run.
-try:
-    nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
-    nltk.download('punkt')
-try:
-    nltk.data.find('corpora/stopwords')
-except nltk.downloader.DownloadError:
-    nltk.download('stopwords')
-
-# Sample documents stored in a dictionary
+# Sample documents
 documents = {
     "doc1": "This is the first document.",
     "doc2": "This document is the second document.",
@@ -45,72 +30,73 @@ documents = {
     "doc4": "Is this the first document?",
 }
 
-# Preprocessing function to tokenize and remove stopwords/punctuation
+# Minimal stopwords list
+stop_words = set([
+    "is", "a", "the", "this", "and", "with", "for", "of", "on", "in", "to"
+])
+
+# Preprocessing function
 def preprocess_text(text):
-    tokens = word_tokenize(text.lower())
-    stop_words = set(stopwords.words("english"))
-    tokens = [token for token in tokens if token not in stop_words and token not in string.punctuation]
+    text = text.lower()
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    tokens = [word for word in text.split() if word not in stop_words]
     return " ".join(tokens)
 
-# Preprocess documents and store them in a dictionary
+# Preprocess documents
 preprocessed_docs = {doc_id: preprocess_text(doc) for doc_id, doc in documents.items()}
 
-# Construct TF-IDF matrix
+# Display Term Frequency (TF)
+count_vectorizer = CountVectorizer()
+tf_matrix = count_vectorizer.fit_transform(preprocessed_docs.values())
+tf_df = pd.DataFrame(tf_matrix.toarray(), index=preprocessed_docs.keys(), columns=count_vectorizer.get_feature_names_out())
+print("=== Term Frequency (TF) ===")
+print(tf_df)
+
+# Display TF-IDF
 tfidf_vectorizer = TfidfVectorizer()
 tfidf_matrix = tfidf_vectorizer.fit_transform(preprocessed_docs.values())
+tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), index=preprocessed_docs.keys(), columns=tfidf_vectorizer.get_feature_names_out())
+print("\n=== TF-IDF ===")
+print(tfidf_df.round(4))
 
-# Calculate cosine similarity between query and documents
+# Search function using cosine similarity
 def search(query, tfidf_matrix, tfidf_vectorizer):
-    # Preprocess the query
-    query_processed = preprocess_text(query)
-    
-    # Transform the query into a TF-IDF vector
-    query_vector = tfidf_vectorizer.transform([query_processed])
-    
-    # Calculate cosine similarity between the query vector and all document vectors
-    cosine_similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
-    
-    # Pair documents with their similarity scores
-    doc_ids = list(documents.keys())
-    search_results = []
-    for i, score in enumerate(cosine_similarities):
-        # Only include results with a similarity score > 0
-        if score > 0:
-            doc_id = doc_ids[i]
-            original_doc = documents[doc_id]
-            search_results.append((doc_id, original_doc, score))
-            
-    # Sort results by similarity score in descending order
-    search_results.sort(key=lambda x: x[2], reverse=True)
-    
-    return search_results
+    preprocessed_query = preprocess_text(query)
+    query_vec = tfidf_vectorizer.transform([preprocessed_query])
+    cosine_sim = cosine_similarity(query_vec, tfidf_matrix).flatten()
 
-# Get input from user
+    results = []
+    doc_ids = list(preprocessed_docs.keys())
+    for i, score in enumerate(cosine_sim):
+        results.append((doc_ids[i], documents[doc_ids[i]], score))
+
+    # Sort by score descending
+    results.sort(key=lambda x: x[2], reverse=True)
+    return results
+
+# User query
 query = input("Enter your query: ")
 
 # Perform search
 search_results = search(query, tfidf_matrix, tfidf_vectorizer)
 
 # Display search results
-print("\nQuery:", query)
-if search_results:
-    for i, result in enumerate(search_results, start=1):
-        print(f"\nRank: {i}")
-        print("Document ID:", result[0])
-        print("Document:", result[1])
-        print(f"Similarity Score: {result[2]:.4f}")
-        print("----------------------")
+print("\n=== Search Results ===")
+for i, result in enumerate(search_results, start=1):
+    print(f"\nRank: {i}")
+    print("Document ID:", result[0])
+    print("Document:", result[1])
+    print("Similarity Score:", round(result[2], 4))
+    print("----------------------")
 
-    # Get the highest rank cosine score
-    highest_rank_score = max(result[2] for result in search_results)
-    print("The highest rank cosine score is:", f"{highest_rank_score:.4f}")
-else:
-    print("No relevant documents found for your query.")
+# Highest cosine score
+highest_rank_score = max(result[2] for result in search_results)
+print("The highest rank cosine score is:", round(highest_rank_score, 4))
+
 ```
 
 ### Output:
 
-<img width="542" height="182" alt="image" src="https://github.com/user-attachments/assets/d4a2f050-dfae-453f-ace1-0222c7e8dbb5" />
 
 ### Result:
 
